@@ -10,7 +10,7 @@ st.set_page_config(page_title="Gestione Flotta", layout="wide")
 
 FILE_LOGO = "logo.png"
 
-# Manteniamo la connessione a Google in cache per non fare il login ogni volta, ma NON i dati!
+# Connessione a Google Sheets in cache
 @st.cache_resource
 def get_sheet():
     creds_json = st.secrets["GCP_CREDENTIALS"]
@@ -18,9 +18,10 @@ def get_sheet():
     client = gspread.service_account_from_dict(creds_dict)
     return client.open("Database_Flotta").worksheet("Dati")
 
+# Funzione per scaricare i dati dal cloud (con disattivazione cache)
+@st.cache_data(ttl=0) # ttl=0 forza Streamlit a non usare mai la memoria vecchia per i dati
 def carica_dati():
     sheet = get_sheet()
-    # Scarica i dati freschi ad ogni esecuzione
     records = sheet.get_all_records()
     dati_flotta = {}
     for row in records:
@@ -81,22 +82,20 @@ def genera_pdf_scheda(targa, mezzo):
     
     return pdf.output(dest='S').encode('latin-1')
 
-
 # --- LOGICA APPLICAZIONE ---
-
-# 1. Carica i dati in diretta da Google Sheets
-dati_flotta = carica_dati()
 
 if os.path.exists(FILE_LOGO):
     st.image(FILE_LOGO, use_container_width=True)
 
 st.title("🚛 Gestione Automezzi e Scadenze")
 
-# 2. Costruisce la sidebar
+# 1. Carica i dati all'avvio della pagina
+dati_flotta = carica_dati()
+
+# 2. Costruisce la sidebar con i dati freschi
 st.sidebar.header("I tuoi Automezzi")
 opzioni_menu = ["➕ Aggiungi Nuovo"] + [f"🚛 {targa}" for targa in dati_flotta.keys()]
 azione = st.sidebar.radio("Seleziona:", opzioni_menu)
-
 
 # --- INSERIMENTO NUOVO ---
 if azione == "➕ Aggiungi Nuovo":
@@ -136,10 +135,14 @@ if azione == "➕ Aggiungi Nuovo":
                     str(scadenza_ztl), data_odierna
                 ]
                 
+                # Scrittura su Google Sheets
                 sheet.append_row(nuova_riga)
-                st.success("Mezzo salvato! Sincronizzazione...")
-                st.rerun() # Ricarica istantaneamente la pagina
-
+                
+                # Forza lo svuotamento della cache dei dati
+                carica_dati.clear() 
+                
+                st.success("Mezzo salvato con successo! Aggiornamento in corso...")
+                st.rerun()
 
 # --- CONSULTAZIONE ED ELIMINAZIONE ---
 else:
@@ -173,9 +176,12 @@ else:
 
             if st.button("Elimina Definitivamente", disabled=not conferma):
                 sheet = get_sheet()
-                # Cerca la riga che contiene la targa ed eliminala
                 cell = sheet.find(targa_selezionata, in_column=1)
                 if cell:
                     sheet.delete_rows(cell.row)
-                st.success("Automezzo rimosso!")
-                st.rerun() # Ricarica istantaneamente la pagina
+                    
+                # Forza lo svuotamento della cache dei dati
+                carica_dati.clear()
+                
+                st.success("Automezzo rimosso! Aggiornamento in corso...")
+                st.rerun()
