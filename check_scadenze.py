@@ -9,7 +9,6 @@ EMAIL_MITTENTE = os.environ.get("EMAIL_MITTENTE")
 PASSWORD_MITTENTE = os.environ.get("EMAIL_PASSWORD")
 
 def parse_data(data_str):
-    # Prova a leggere la data in tutti i formati possibili (Americano e Italiano)
     formati = ["%Y-%m-%d", "%d/%m/%Y", "%Y/%m/%d"]
     for fmt in formati:
         try:
@@ -37,22 +36,25 @@ def controlla_e_invia():
     soglia_avviso = oggi + timedelta(days=7)
     
     for row in records:
-        targa = str(row.get("Targa", "")).strip()
+        # Normalizza tutte le intestazioni in maiuscolo senza spazi per evitare errori di battitura
+        row_norm = {str(k).strip().upper(): v for k, v in row.items()}
+        
+        targa = str(row_norm.get("TARGA", "")).strip()
         if not targa:
             continue
             
-        email_referente = str(row.get("Email", "")).strip()
+        email_referente = str(row_norm.get("EMAIL", "")).strip()
         print(f"\n--- Analisi Mezzo: {targa} ---")
         
-        for doc in ["Assicurazione", "Bollo", "Tagliando", "ZTL"]:
-            data_str = str(row.get(doc, "")).strip()
-            if not data_str or data_str == "None":
+        for doc in ["ASSICURAZIONE", "BOLLO", "TAGLIANDO", "ZTL"]:
+            data_str = str(row_norm.get(doc, "")).strip()
+            if not data_str or data_str == "NONE":
                 continue
                 
             data_scadenza = parse_data(data_str)
             
             if not data_scadenza:
-                print(f"[{doc}] IGNOTO: Il formato della data '{data_str}' non è riconosciuto.")
+                print(f"[{doc}] IGNOTO: La cella contiene '{data_str}' che non è una data valida.")
                 continue
             
             if data_scadenza <= soglia_avviso:
@@ -68,8 +70,8 @@ def invia_email(destinatario, targa, documento, data):
         return
 
     msg = EmailMessage()
-    msg.set_content(f"Attenzione: la scadenza per {documento.upper()} del mezzo {targa} è {data.strftime('%d/%m/%Y')}.")
-    msg['Subject'] = f"Avviso Scadenza {documento.capitalize()} - {targa}"
+    msg.set_content(f"Attenzione: la scadenza per {documento} del mezzo {targa} è {data.strftime('%d/%m/%Y')}.")
+    msg['Subject'] = f"Avviso Scadenza {documento} - {targa}"
     msg['From'] = EMAIL_MITTENTE
     msg['To'] = destinatario
 
