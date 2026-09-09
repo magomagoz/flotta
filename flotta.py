@@ -22,11 +22,16 @@ def genera_pdf_scheda(targa, mezzo):
     pdf = FPDF()
     pdf.add_page()
     
-    # Inserimento Banner/Logo nel PDF (se esiste)
+    # Inserimento Banner/Logo nel PDF in modo sicuro
     if os.path.exists(FILE_LOGO):
-        # Aggiusta la larghezza (w) in base alle proporzioni del tuo logo
-        pdf.image(FILE_LOGO, x=10, y=10, w=190)
-        pdf.ln(40) # Spazio dopo il logo
+        try:
+            pdf.image(FILE_LOGO, x=10, y=10, w=190)
+            pdf.ln(40) # Spazio dopo il logo
+        except Exception as e:
+            # Se l'immagine non è valida, non blocca l'app ma lo scrive nel PDF
+            pdf.set_font("helvetica", "B", 10)
+            pdf.cell(0, 10, "[Impossibile caricare il logo. Verifica che sia un file PNG valido]", ln=True, align="C")
+            pdf.ln(10)
     else:
         pdf.set_font("helvetica", "B", 16)
         pdf.cell(0, 10, "LOGO AZIENDA NON TROVATO", ln=True, align="C")
@@ -56,7 +61,6 @@ def genera_pdf_scheda(targa, mezzo):
     pdf.cell(0, 10, f"Tagliando: {mezzo.get('tagliando', '-')}", ln=True)
     pdf.cell(0, 10, f"Permesso ZTL: {mezzo.get('ztl', '-')}", ln=True)
     
-    # Ritorna il PDF in formato byte per Streamlit
     return bytes(pdf.output())
 
 st.set_page_config(page_title="Gestione Flotta", layout="wide")
