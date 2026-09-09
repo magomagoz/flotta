@@ -10,10 +10,9 @@ st.set_page_config(page_title="Gestione Flotta", layout="wide")
 
 FILE_LOGO = "logo.png"
 
-# Connessione a Google Sheets (usiamo cache_resource per non ricaricare ad ogni clic)
+# Manteniamo la connessione a Google in cache per non fare il login ogni volta, ma NON i dati!
 @st.cache_resource
 def get_sheet():
-    # Legge il JSON segreto dai secrets di Streamlit
     creds_json = st.secrets["GCP_CREDENTIALS"]
     creds_dict = json.loads(creds_json)
     client = gspread.service_account_from_dict(creds_dict)
@@ -21,10 +20,11 @@ def get_sheet():
 
 def carica_dati():
     sheet = get_sheet()
+    # Scarica i dati freschi ad ogni esecuzione
     records = sheet.get_all_records()
     dati_flotta = {}
     for row in records:
-        targa = str(row.get("Targa", ""))
+        targa = str(row.get("Targa", "")).strip().upper()
         if targa:
             dati_flotta[targa] = {
                 "marca": str(row.get("Marca", "")),
@@ -48,7 +48,7 @@ def genera_pdf_scheda(targa, mezzo):
     if os.path.exists(FILE_LOGO):
         try:
             pdf.image(FILE_LOGO, x=10, y=10, w=190)
-            pdf.set_y(70) # Abbassato per non coprire il logo
+            pdf.set_y(70)
         except Exception:
             pdf.set_font("helvetica", "B", 10)
             pdf.cell(0, 10, "[Impossibile caricare il logo. Verifica che sia un file PNG valido]", ln=True, align="C")
@@ -79,29 +79,26 @@ def genera_pdf_scheda(targa, mezzo):
     pdf.cell(0, 10, f"Tagliando: {mezzo.get('tagliando', '-')}", ln=True)
     pdf.cell(0, 10, f"Permesso ZTL: {mezzo.get('ztl', '-')}", ln=True)
     
-    # Restituisce i byte formattati correttamente per Streamlit
     return pdf.output(dest='S').encode('latin-1')
 
+
 # --- LOGICA APPLICAZIONE ---
-if 'refresh' not in st.session_state:
-    st.session_state.refresh = True
 
-if st.session_state.refresh:
-    st.session_state.flotta = carica_dati()
-    st.session_state.refresh = False
-
-dati_flotta = st.session_state.flotta
+# 1. Carica i dati in diretta da Google Sheets
+dati_flotta = carica_dati()
 
 if os.path.exists(FILE_LOGO):
     st.image(FILE_LOGO, use_container_width=True)
 
 st.title("🚛 Gestione Automezzi e Scadenze")
 
+# 2. Costruisce la sidebar
 st.sidebar.header("I tuoi Automezzi")
 opzioni_menu = ["➕ Aggiungi Nuovo"] + [f"🚛 {targa}" for targa in dati_flotta.keys()]
 azione = st.sidebar.radio("Seleziona:", opzioni_menu)
 
-# INSERIMENTO NUOVO
+
+# --- INSERIMENTO NUOVO ---
 if azione == "➕ Aggiungi Nuovo":
     st.subheader("Crea Scheda Automezzo")
     
@@ -132,24 +129,19 @@ if azione == "➕ Aggiungi Nuovo":
             else:
                 data_odierna = datetime.now().strftime("%d/%m/%Y")
                 sheet = get_sheet()
-
                 
-                # ... codice precedente ...
-                nuova_riga = [targa, marca, modello, str(immatricolazione), possesso, email_referente, 
-                              str(scadenza_assicurazione), str(scadenza_bollo), str(scadenza_tagliando), 
-                              str(scadenza_ztl), data_odierna]
+                nuova_riga = [
+                    targa, marca, modello, str(immatricolazione), possesso, email_referente, 
+                    str(scadenza_assicurazione), str(scadenza_bollo), str(scadenza_tagliando), 
+                    str(scadenza_ztl), data_odierna
+                ]
+                
                 sheet.append_row(nuova_riga)
-                
-                # MODIFICA DA QUI:
-                st.success(f"Mezzo salvato! Aggiornamento...")
-                
-                # Questa riga cancella la cache, costringendo Streamlit a riscaricare dal Foglio
-                get_sheet.clear() 
-                
-                st.session_state.refresh = True
-                st.rerun()
-                
-# CONSULTAZIONE ED ELIMINAZIONE
+                st.success("Mezzo salvato! Sincronizzazione...")
+                st.rerun() # Ricarica istantaneamente la pagina
+
+
+# --- CONSULTAZIONE ED ELIMINAZIONE ---
 else:
     targa_selezionata = azione.replace("🚛 ", "")
     mezzo = dati_flotta[targa_selezionata]
@@ -186,16 +178,4 @@ else:
                 if cell:
                     sheet.delete_rows(cell.row)
                 st.success("Automezzo rimosso!")
-                
-                # MODIFICA DA QUI:
-                get_sheet.clear() # Svuota la cache anche quando elimini
-                
-                st.session_state.refresh = True
-                st.rerun()
-
-
-
-
-
-
-
+                st.rerun() # Ricarica istantaneamente la pagina
