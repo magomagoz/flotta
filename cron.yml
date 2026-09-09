@@ -2,7 +2,7 @@ name: Controllo Scadenze Quotidiano
 
 on:
   schedule:
-    - cron: '0 6 * * *' # Esegue ogni giorno alle 06:00 UTC
+    - cron: '0 22 * * *' # Esegue ogni giorno alle 06:00 UTC
   workflow_dispatch: # Permette l'avvio manuale da GitHub
 
 jobs:
