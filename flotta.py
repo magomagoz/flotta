@@ -6,6 +6,27 @@ from datetime import datetime
 from fpdf import FPDF
 
 st.set_page_config(page_title="Gestione Flotta", layout="wide")
+
+# --- PERSONALIZZAZIONE GRAFICA SIDEBAR ---
+st.markdown(
+    """
+    <style>
+    /* Spazio tra i singoli automezzi nell'elenco */
+    [data-testid="stSidebar"] div[role="radiogroup"] > label {
+        margin-bottom: 12px !important; 
+    }
+    
+    /* Spazio extra e linea di separazione sotto "Aggiungi Nuovo" (la prima voce) */
+    [data-testid="stSidebar"] div[role="radiogroup"] > label:first-child {
+        margin-bottom: 30px !important;
+        padding-bottom: 15px !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 FILE_LOGO = "logo.png"
 
 # --- 1. CONNESSIONE GOOGLE SHEETS ---
