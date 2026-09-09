@@ -1,0 +1,28 @@
+name: Controllo Scadenze Quotidiano
+
+on:
+  schedule:
+    - cron: '30 20 * * *' # Avvio alle 22:30 ora italiana
+  workflow_dispatch: # Permette il test manuale con il tasto Run
+
+jobs:
+  check-deadlines:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          
+      - name: Installa dipendenze
+        run: pip install -r requirements.txt
+
+      - name: Esegui script scadenze
+        env:
+          EMAIL_MITTENTE: ${{ secrets.EMAIL_MITTENTE }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
+        run: python check_scadenze.py
