@@ -97,7 +97,12 @@ def genera_pdf_scheda(targa, mezzo):
     pdf.cell(0, 10, f"Tagliando: {mezzo.get('tagliando', '-')}", ln=True)
     pdf.cell(0, 10, f"Permesso ZTL: {mezzo.get('ztl', '-')}", ln=True)
     
-    return pdf.output(dest='S').encode('latin-1')
+    try:
+        # Se usi la nuova libreria fpdf2 (Quella attualmente sul tuo GitHub)
+        return bytes(pdf.output())
+    except TypeError:
+        # Metodo di riserva se Streamlit usa la vecchia libreria fpdf
+        return pdf.output(dest='S').encode('latin-1')
 
 # --- 4. INTERFACCIA UTENTE ---
 if os.path.exists(FILE_LOGO):
