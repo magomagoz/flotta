@@ -1,34 +1,55 @@
 import streamlit as st
 import json
 import os
+import gspread
 from datetime import datetime
 from fpdf import FPDF
 
-FILE_DATI = "flotta.json"
+# Configurazione pagina
+st.set_page_config(page_title="Gestione Flotta", layout="wide")
+
 FILE_LOGO = "logo.png"
 
+# Connessione a Google Sheets (usiamo cache_resource per non ricaricare ad ogni clic)
+@st.cache_resource
+def get_sheet():
+    # Legge il JSON segreto dai secrets di Streamlit
+    creds_json = st.secrets["GCP_CREDENTIALS"]
+    creds_dict = json.loads(creds_json)
+    client = gspread.service_account_from_dict(creds_dict)
+    return client.open("Database_Flotta").worksheet("Dati")
+
 def carica_dati():
-    if not os.path.exists(FILE_DATI):
-        return {}
-    with open(FILE_DATI, "r") as f:
-        return json.load(f)
+    sheet = get_sheet()
+    records = sheet.get_all_records()
+    dati_flotta = {}
+    for row in records:
+        targa = str(row.get("Targa", ""))
+        if targa:
+            dati_flotta[targa] = {
+                "marca": str(row.get("Marca", "")),
+                "modello": str(row.get("Modello", "")),
+                "immatricolazione": str(row.get("Immatricolazione", "")),
+                "possesso": str(row.get("Possesso", "")),
+                "email": str(row.get("Email", "")),
+                "assicurazione": str(row.get("Assicurazione", "")),
+                "bollo": str(row.get("Bollo", "")),
+                "tagliando": str(row.get("Tagliando", "")),
+                "ztl": str(row.get("ZTL", "")),
+                "data_creazione": str(row.get("Data_Creazione", ""))
+            }
+    return dati_flotta
 
-def salva_dati(dati):
-    with open(FILE_DATI, "w") as f:
-        json.dump(dati, f, indent=4)
-
-# Funzione per generare il PDF con fpdf2
+# Generazione PDF
 def genera_pdf_scheda(targa, mezzo):
     pdf = FPDF()
     pdf.add_page()
     
-    # Inserimento Banner/Logo nel PDF in modo sicuro
     if os.path.exists(FILE_LOGO):
         try:
             pdf.image(FILE_LOGO, x=10, y=10, w=190)
-            pdf.ln(70) # Spazio dopo il logo
-        except Exception as e:
-            # Se l'immagine non è valida, non blocca l'app ma lo scrive nel PDF
+            pdf.set_y(70) # Abbassato per non coprire il logo
+        except Exception:
             pdf.set_font("helvetica", "B", 10)
             pdf.cell(0, 10, "[Impossibile caricare il logo. Verifica che sia un file PNG valido]", ln=True, align="C")
             pdf.ln(10)
@@ -37,12 +58,10 @@ def genera_pdf_scheda(targa, mezzo):
         pdf.cell(0, 10, "LOGO AZIENDA NON TROVATO", ln=True, align="C")
         pdf.ln(10)
         
-    # Titolo Scheda
     pdf.set_font("helvetica", "B", 18)
     pdf.cell(0, 10, f"Scheda Automezzo: {targa}", ln=True, align="C")
     pdf.ln(5)
     
-    # Dati Generali
     pdf.set_font("helvetica", "", 12)
     pdf.cell(0, 10, f"Data creazione scheda: {mezzo.get('data_creazione', '-')}", ln=True)
     pdf.cell(0, 10, f"Marca: {mezzo.get('marca', '-')}", ln=True)
@@ -52,7 +71,6 @@ def genera_pdf_scheda(targa, mezzo):
     pdf.cell(0, 10, f"Email Referente: {mezzo.get('email', '-')}", ln=True)
     pdf.ln(10)
     
-    # Dati Scadenze
     pdf.set_font("helvetica", "B", 14)
     pdf.cell(0, 10, "Scadenze Programmate", ln=True)
     pdf.set_font("helvetica", "", 12)
@@ -61,43 +79,42 @@ def genera_pdf_scheda(targa, mezzo):
     pdf.cell(0, 10, f"Tagliando: {mezzo.get('tagliando', '-')}", ln=True)
     pdf.cell(0, 10, f"Permesso ZTL: {mezzo.get('ztl', '-')}", ln=True)
     
-    return bytes(pdf.output())
+    # Restituisce i byte formattati correttamente per Streamlit
+    return pdf.output(dest='S').encode('latin-1')
 
-st.set_page_config(page_title="Gestione Flotta", layout="wide")
+# --- LOGICA APPLICAZIONE ---
+if 'refresh' not in st.session_state:
+    st.session_state.refresh = True
 
-# --- BANNER IN CIMA ALL'APP ---
+if st.session_state.refresh:
+    st.session_state.flotta = carica_dati()
+    st.session_state.refresh = False
+
+dati_flotta = st.session_state.flotta
+
 if os.path.exists(FILE_LOGO):
-    # use_container_width adatta il logo alla larghezza della pagina
     st.image(FILE_LOGO, use_container_width=True)
 
 st.title("🚛 Gestione Automezzi e Scadenze")
 
-if 'flotta' not in st.session_state:
-    st.session_state.flotta = carica_dati()
-
-dati_flotta = st.session_state.flotta
-
-# --- SIDEBAR: Menu di Navigazione pulito ---
 st.sidebar.header("I tuoi Automezzi")
 opzioni_menu = ["➕ Aggiungi Nuovo"] + [f"🚛 {targa}" for targa in dati_flotta.keys()]
 azione = st.sidebar.radio("Seleziona:", opzioni_menu)
 
-# --- MAIN: Aggiunta Nuovo Mezzo ---
+# INSERIMENTO NUOVO
 if azione == "➕ Aggiungi Nuovo":
     st.subheader("Crea Scheda Automezzo")
     
     with st.form("form_nuovo_mezzo"):
         targa = st.text_input("Targa Automezzo*").upper()
-        
         col_marca, col_modello = st.columns(2)
-        marca = col_marca.text_input("Marca (es. Fiat)")
-        modello = col_modello.text_input("Modello (es. Ducato)")
+        marca = col_marca.text_input("Marca")
+        modello = col_modello.text_input("Modello")
         
         col_imm, col_prop = st.columns(2)
         immatricolazione = col_imm.date_input("Data di Immatricolazione")
         possesso = col_prop.radio("Tipologia di possesso", ["Di Proprietà", "In Leasing"], horizontal=True)
-                
-        # Cambiamo l'etichetta per renderlo chiaro all'utente
+        
         email_referente = st.text_input("Email Referente (lascia vuoto per inviare all'amministrazione)")
         
         st.markdown("### Scadenze Documentali")
@@ -109,84 +126,57 @@ if azione == "➕ Aggiungi Nuovo":
         
         submit = st.form_submit_button("Salva Automezzo")
         
-        # Rimuoviamo 'email_referente' dai requisiti obbligatori per il salvataggio
-        if submit and targa: 
+        if submit and targa:
             if targa in dati_flotta:
-                st.error("Una scheda con questa targa esiste già!")
+                st.error("Scheda con questa targa già esistente!")
             else:
                 data_odierna = datetime.now().strftime("%d/%m/%Y")
-                dati_flotta[targa] = {
-                    "data_creazione": data_odierna,
-                    "marca": marca,
-                    "modello": modello,
-                    "immatricolazione": str(immatricolazione),
-                    "possesso": possesso,
-                    "email": email_referente, # Salverà una stringa vuota se non compili il campo
-                    "assicurazione": str(scadenza_assicurazione),
-                    "bollo": str(scadenza_bollo),
-                    "tagliando": str(scadenza_tagliando),
-                    "ztl": str(scadenza_ztl)
-                }
-                salva_dati(dati_flotta)
-                st.success(f"Mezzo {targa} salvato con successo!")
+                sheet = get_sheet()
+                # Appende una nuova riga (Attenzione: ordine identico a come creato su Google Sheet!)
+                nuova_riga = [targa, marca, modello, str(immatricolazione), possesso, email_referente, 
+                              str(scadenza_assicurazione), str(scadenza_bollo), str(scadenza_tagliando), 
+                              str(scadenza_ztl), data_odierna]
+                sheet.append_row(nuova_riga)
+                
+                st.success(f"Mezzo salvato! Aggiornamento...")
+                st.session_state.refresh = True
                 st.rerun()
-        
-# --- MAIN: Consultazione Mezzo Esistente ---
+
+# CONSULTAZIONE ED ELIMINAZIONE
 else:
     targa_selezionata = azione.replace("🚛 ", "")
     mezzo = dati_flotta[targa_selezionata]
     
     st.subheader(f"Scheda Automezzo: {targa_selezionata}")
-    st.caption(f"Scheda creata nel sistema il: **{mezzo.get('data_creazione', 'Data non disponibile')}**")
-    
-    st.markdown("---")
-    
     col_dati1, col_dati2 = st.columns(2)
     with col_dati1:
         st.markdown(f"**Marca:** {mezzo.get('marca', '-')}")
         st.markdown(f"**Modello:** {mezzo.get('modello', '-')}")
-        st.markdown(f"**Tipologia:** {mezzo.get('possesso', '-')}")
-        
     with col_dati2:
         st.markdown(f"**Data Immatricolazione:** {mezzo.get('immatricolazione', '-')}")
         st.markdown(f"**Email Avvisi:** {mezzo.get('email', '-')}")
         
-    st.markdown("---")
-    st.markdown("### Scadenze Programmate")
-    
     st.table({
         "Documento": ["Assicurazione", "Bollo", "Tagliando", "Permesso ZTL"],
-        "Data di Scadenza": [
-            mezzo.get('assicurazione', '-'), 
-            mezzo.get('bollo', '-'), 
-            mezzo.get('tagliando', '-'), 
-            mezzo.get('ztl', '-')
-        ]
+        "Data di Scadenza": [mezzo.get('assicurazione'), mezzo.get('bollo'), mezzo.get('tagliando'), mezzo.get('ztl')]
     })
     
-    st.divider() # Linea di separazione visiva per le azioni in basso
-    
-    # --- PULSANTI AZIONE IN BASSO ---
+    st.divider()
     col_pdf, col_elimina = st.columns(2)
     
     with col_pdf:
-        # Generiamo il PDF al volo quando la pagina viene caricata
         pdf_bytes = genera_pdf_scheda(targa_selezionata, mezzo)
-        st.download_button(
-            label="📄 Scarica Scheda in PDF",
-            data=pdf_bytes,
-            file_name=f"Scheda_{targa_selezionata}.pdf",
-            mime="application/pdf",
-            type="primary"
-        )
+        st.download_button("📄 Scarica Scheda in PDF", data=pdf_bytes, file_name=f"Scheda_{targa_selezionata}.pdf", mime="application/pdf", type="primary")
         
     with col_elimina:
-        with st.expander("🗑️ Opzioni Pericolose (Elimina Automezzo)"):
-            st.warning("Stai per eliminare questo automezzo. L'operazione è irreversibile.")
-            conferma = st.checkbox("Confermo l'eliminazione")
-            
+        with st.expander("🗑️ Elimina Automezzo"):
+            conferma = st.checkbox("Confermo eliminazione")
             if st.button("Elimina Definitivamente", disabled=not conferma):
-                del dati_flotta[targa_selezionata]
-                salva_dati(dati_flotta)
-                st.success("Automezzo rimosso. Aggiornamento in corso...")
+                sheet = get_sheet()
+                # Cerca la riga che contiene la targa ed eliminala
+                cell = sheet.find(targa_selezionata, in_column=1)
+                if cell:
+                    sheet.delete_rows(cell.row)
+                st.success("Automezzo rimosso!")
+                st.session_state.refresh = True
                 st.rerun()
