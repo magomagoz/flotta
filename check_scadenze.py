@@ -1,42 +1,51 @@
+import gspread
 import json
 import smtplib
-from datetime import datetime, timedelta
 import os
+from datetime import datetime, timedelta
 from email.message import EmailMessage
 
-FILE_DATI = "flotta.json"
 EMAIL_MITTENTE = os.environ.get("EMAIL_MITTENTE")
-PASSWORD_MITTENTE = os.environ.get("EMAIL_PASSWORD") # Usa una Password per le App se usi Gmail
+PASSWORD_MITTENTE = os.environ.get("EMAIL_PASSWORD")
 
 def controlla_e_invia():
-    with open(FILE_DATI, "r") as f:
-        dati = json.load(f)
-        
-    oggi = datetime.now().date()
-    # Fissiamo la soglia a 7 giorni da oggi
-    soglia_avviso = oggi + timedelta(days=7)
+    # Legge le credenziali e si collega a Google
+    creds_json = os.environ.get("GCP_CREDENTIALS")
+    creds_dict = json.loads(creds_json)
+    client = gspread.service_account_from_dict(creds_dict)
+    sheet = client.open("Database_Flotta").worksheet("Dati")
     
-    for targa, info in dati.items():
-        for doc in ["assicurazione", "bollo", "tagliando", "ztl"]:
-            # Saltiamo il documento se la data non è stata inserita correttamente
-            if not info.get(doc) or info[doc] == "None":
+    records = sheet.get_all_records()
+    
+    oggi = datetime.now().date()
+    soglia_avviso = oggi + timedelta(days=7) # Avvisa da 7 giorni prima in poi
+    
+    for row in records:
+        targa = str(row.get("Targa", ""))
+        if not targa:
+            continue
+            
+        email_referente = str(row.get("Email", "")).strip()
+        
+        for doc in ["Assicurazione", "Bollo", "Tagliando", "ZTL"]:
+            data_str = str(row.get(doc, ""))
+            if not data_str or data_str == "None":
                 continue
                 
-            data_scadenza = datetime.strptime(info[doc], "%Y-%m-%d").date()
+            try:
+                data_scadenza = datetime.strptime(data_str, "%Y-%m-%d").date()
+            except ValueError:
+                continue
             
-            # Se la scadenza è uguale o minore a 7 giorni da oggi (incluso se è nel passato)
+            # Se la scadenza è a 7 giorni, o già passata
             if data_scadenza <= soglia_avviso:
-                
-                # Logica email: usa quella specificata, altrimenti l'amministratore
-                email_destinatario = info.get('email', '').strip()
-                if not email_destinatario:
-                    email_destinatario = EMAIL_MITTENTE
-                
+                # Logica email: se vuoto, usa il mittente
+                email_destinatario = email_referente if email_referente else EMAIL_MITTENTE
                 invia_email(email_destinatario, targa, doc, data_scadenza)
 
 def invia_email(destinatario, targa, documento, data):
     msg = EmailMessage()
-    msg.set_content(f"Attenzione: la scadenza per {documento.upper()} del mezzo {targa} è prevista per il {data.strftime('%d/%m/%Y')}.")
+    msg.set_content(f"Attenzione: la scadenza per {documento.upper()} del mezzo {targa} è {data.strftime('%d/%m/%Y')}.")
     msg['Subject'] = f"Avviso Scadenza {documento.capitalize()} - {targa}"
     msg['From'] = EMAIL_MITTENTE
     msg['To'] = destinatario
@@ -45,9 +54,9 @@ def invia_email(destinatario, targa, documento, data):
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
             server.login(EMAIL_MITTENTE, PASSWORD_MITTENTE)
             server.send_message(msg)
-        print(f"Email inviata per {targa} ({documento})")
+        print(f"Inviato per {targa} ({documento}) a {destinatario}")
     except Exception as e:
-        print(f"Errore invio email: {e}")
+        print(f"Errore invio: {e}")
 
 if __name__ == "__main__":
     controlla_e_invia()
