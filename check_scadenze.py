@@ -19,9 +19,13 @@ def controlla_e_invia():
         for doc in ["assicurazione", "bollo", "tagliando", "ztl"]:
             data_scadenza = datetime.strptime(info[doc], "%Y-%m-%d").date()
             
-            # Se la scadenza è esattamente tra 7 giorni
             if data_scadenza == target_date:
-                invia_email(info['email'], targa, doc, data_scadenza)
+                # LOGICA DI FALLBACK: Se l'email non c'è o è vuota, usa quella dei Secrets
+                email_destinatario = info.get('email', '').strip()
+                if not email_destinatario:
+                    email_destinatario = EMAIL_MITTENTE
+                
+                invia_email(email_destinatario, targa, doc, data_scadenza)
 
 def invia_email(destinatario, targa, documento, data):
     msg = EmailMessage()
