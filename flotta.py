@@ -92,8 +92,9 @@ if azione == "➕ Aggiungi Nuovo":
         col_imm, col_prop = st.columns(2)
         immatricolazione = col_imm.date_input("Data di Immatricolazione")
         possesso = col_prop.radio("Tipologia di possesso", ["Di Proprietà", "In Leasing"], horizontal=True)
-        
-        email_referente = st.text_input("Email Referente per Avvisi*")
+                
+        # Cambiamo l'etichetta per renderlo chiaro all'utente
+        email_referente = st.text_input("Email Referente (lascia vuoto per inviare all'amministrazione)")
         
         st.markdown("### Scadenze Documentali")
         col1, col2 = st.columns(2)
@@ -104,7 +105,8 @@ if azione == "➕ Aggiungi Nuovo":
         
         submit = st.form_submit_button("Salva Automezzo")
         
-        if submit and targa and email_referente:
+        # Rimuoviamo 'email_referente' dai requisiti obbligatori per il salvataggio
+        if submit and targa: 
             if targa in dati_flotta:
                 st.error("Una scheda con questa targa esiste già!")
             else:
@@ -115,7 +117,7 @@ if azione == "➕ Aggiungi Nuovo":
                     "modello": modello,
                     "immatricolazione": str(immatricolazione),
                     "possesso": possesso,
-                    "email": email_referente,
+                    "email": email_referente, # Salverà una stringa vuota se non compili il campo
                     "assicurazione": str(scadenza_assicurazione),
                     "bollo": str(scadenza_bollo),
                     "tagliando": str(scadenza_tagliando),
@@ -124,7 +126,7 @@ if azione == "➕ Aggiungi Nuovo":
                 salva_dati(dati_flotta)
                 st.success(f"Mezzo {targa} salvato con successo!")
                 st.rerun()
-
+        
 # --- MAIN: Consultazione Mezzo Esistente ---
 else:
     targa_selezionata = azione.replace("🚛 ", "")
