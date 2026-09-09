@@ -26,7 +26,7 @@ def genera_pdf_scheda(targa, mezzo):
     if os.path.exists(FILE_LOGO):
         try:
             pdf.image(FILE_LOGO, x=10, y=10, w=190)
-            pdf.sey_y(150) # Spazio dopo il logo
+            pdf.ln(70) # Spazio dopo il logo
         except Exception as e:
             # Se l'immagine non è valida, non blocca l'app ma lo scrive nel PDF
             pdf.set_font("helvetica", "B", 10)
