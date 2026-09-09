@@ -2,7 +2,7 @@ name: Controllo Scadenze Quotidiano
 
 on:
   schedule:
-    - cron: '30 20 * * *' # Avvio alle 22:30 ora italiana
+    - cron: '0 6 * * *' # Avvio alle 6:00 ora italiana
   workflow_dispatch: # Permette il test manuale con il tasto Run
 
 jobs:
