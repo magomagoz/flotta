@@ -175,6 +175,7 @@ if azione == "➕ Aggiungi Nuovo":
                     st.error(f"Errore durante il salvataggio: {e}")
 
 # --- CONSULTAZIONE ---
+# --- CONSULTAZIONE ED ELIMINAZIONE ---
 else:
     targa_selezionata = azione.replace("🚛 ", "")
     mezzo = dati_flotta[targa_selezionata]
@@ -193,6 +194,39 @@ else:
         "Scadenza": [mezzo.get('assicurazione'), mezzo.get('bollo'), mezzo.get('tagliando'), mezzo.get('ztl')]
     })
     
+    # --- MODIFICA SCADENZE ---
+    with st.expander("✏️ Modifica Scadenze"):
+        # Converte le stringhe salvate in oggetti "Data" per precompilare i campi
+        def leggi_data(data_str):
+            try:
+                return datetime.strptime(data_str, "%Y-%m-%d").date()
+            except:
+                return datetime.now().date()
+
+        with st.form("form_modifica"):
+            mc1, mc2 = st.columns(2)
+            nuova_ass = mc1.date_input("Assicurazione", value=leggi_data(mezzo.get('assicurazione')))
+            nuovo_bollo = mc2.date_input("Bollo", value=leggi_data(mezzo.get('bollo')))
+            nuovo_tagl = mc1.date_input("Tagliando", value=leggi_data(mezzo.get('tagliando')))
+            nuova_ztl = mc2.date_input("Permesso ZTL", value=leggi_data(mezzo.get('ztl')))
+            
+            if st.form_submit_button("Aggiorna Scadenze"):
+                sheet = get_sheet()
+                cell = sheet.find(targa_selezionata, in_column=1)
+                
+                if cell:
+                    row_idx = cell.row
+                    intestazioni = [str(x).strip().upper() for x in sheet.row_values(1)]
+                    
+                    # Sovrascrive le singole celle calcolando la colonna esatta (+1 perché Google Sheets parte da colonna 1)
+                    sheet.update_cell(row_idx, intestazioni.index("ASSICURAZIONE") + 1, str(nuova_ass))
+                    sheet.update_cell(row_idx, intestazioni.index("BOLLO") + 1, str(nuovo_bollo))
+                    sheet.update_cell(row_idx, intestazioni.index("TAGLIANDO") + 1, str(nuovo_tagl))
+                    sheet.update_cell(row_idx, intestazioni.index("ZTL") + 1, str(nuova_ztl))
+                    
+                    st.success("Scadenze aggiornate con successo!")
+                    st.rerun()
+    
     st.divider()
     c_pdf, c_del = st.columns(2)
     
@@ -208,3 +242,4 @@ else:
                 if cell:
                     sheet.delete_rows(cell.row)
                 st.rerun()
+
