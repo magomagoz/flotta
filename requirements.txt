@@ -4,4 +4,4 @@ requests
 pytz
 fpdf2
 scipy
-
+gspread
