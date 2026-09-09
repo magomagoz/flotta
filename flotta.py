@@ -132,16 +132,23 @@ if azione == "➕ Aggiungi Nuovo":
             else:
                 data_odierna = datetime.now().strftime("%d/%m/%Y")
                 sheet = get_sheet()
-                # Appende una nuova riga (Attenzione: ordine identico a come creato su Google Sheet!)
+
+                
+                # ... codice precedente ...
                 nuova_riga = [targa, marca, modello, str(immatricolazione), possesso, email_referente, 
                               str(scadenza_assicurazione), str(scadenza_bollo), str(scadenza_tagliando), 
                               str(scadenza_ztl), data_odierna]
                 sheet.append_row(nuova_riga)
                 
+                # MODIFICA DA QUI:
                 st.success(f"Mezzo salvato! Aggiornamento...")
+                
+                # Questa riga cancella la cache, costringendo Streamlit a riscaricare dal Foglio
+                get_sheet.clear() 
+                
                 st.session_state.refresh = True
                 st.rerun()
-
+                
 # CONSULTAZIONE ED ELIMINAZIONE
 else:
     targa_selezionata = azione.replace("🚛 ", "")
@@ -171,6 +178,7 @@ else:
     with col_elimina:
         with st.expander("🗑️ Elimina Automezzo"):
             conferma = st.checkbox("Confermo eliminazione")
+
             if st.button("Elimina Definitivamente", disabled=not conferma):
                 sheet = get_sheet()
                 # Cerca la riga che contiene la targa ed eliminala
@@ -178,5 +186,16 @@ else:
                 if cell:
                     sheet.delete_rows(cell.row)
                 st.success("Automezzo rimosso!")
+                
+                # MODIFICA DA QUI:
+                get_sheet.clear() # Svuota la cache anche quando elimini
+                
                 st.session_state.refresh = True
                 st.rerun()
+
+
+
+
+
+
+
