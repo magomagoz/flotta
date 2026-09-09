@@ -5,8 +5,8 @@ import os
 from email.message import EmailMessage
 
 FILE_DATI = "flotta.json"
-EMAIL_MITTENTE = os.environ.get("magostinienrico@gmail.com")
-PASSWORD_MITTENTE = os.environ.get("Infini@@@y") # Usa una Password per le App se usi Gmail
+EMAIL_MITTENTE = os.environ.get("EMAIL_MITTENTE")
+PASSWORD_MITTENTE = os.environ.get("EMAIL_PASSWORD") # Usa una Password per le App se usi Gmail
 
 def controlla_e_invia():
     with open(FILE_DATI, "r") as f:
