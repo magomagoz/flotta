@@ -13,14 +13,21 @@ def controlla_e_invia():
         dati = json.load(f)
         
     oggi = datetime.now().date()
-    target_date = oggi + timedelta(days=7)
+    # Fissiamo la soglia a 7 giorni da oggi
+    soglia_avviso = oggi + timedelta(days=7)
     
     for targa, info in dati.items():
         for doc in ["assicurazione", "bollo", "tagliando", "ztl"]:
+            # Saltiamo il documento se la data non è stata inserita correttamente
+            if not info.get(doc) or info[doc] == "None":
+                continue
+                
             data_scadenza = datetime.strptime(info[doc], "%Y-%m-%d").date()
             
-            if data_scadenza == target_date:
-                # LOGICA DI FALLBACK: Se l'email non c'è o è vuota, usa quella dei Secrets
+            # Se la scadenza è uguale o minore a 7 giorni da oggi (incluso se è nel passato)
+            if data_scadenza <= soglia_avviso:
+                
+                # Logica email: usa quella specificata, altrimenti l'amministratore
                 email_destinatario = info.get('email', '').strip()
                 if not email_destinatario:
                     email_destinatario = EMAIL_MITTENTE
