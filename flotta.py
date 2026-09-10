@@ -152,7 +152,9 @@ if azione == "➕ Aggiungi Nuovo":
         immatricolazione = col_imm.date_input("Immatricolazione")
         possesso = col_prop.radio("Possesso", ["Di Proprietà", "In Leasing"], horizontal=True)
         
-        email_referente = st.text_input("Email Avvisi (vuoto = usa mittente base)")
+        email_referente = st.text_input("Email Referente (modifica o cancella)", value="indirizzo.specifico@gmail.com")
+        
+        #email_referente = st.text_input("Email Avvisi (vuoto = usa mittente base)")
         
         st.markdown("### Scadenze")
         col1, col2 = st.columns(2)
